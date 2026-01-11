@@ -485,3 +485,140 @@ Configuration Reference:
 | `proxy_set_header X-Forwarded-*` | Pass original request information to backend |
 | `proxy_buffer_size 128k` | Increase buffer for larger OIDC tokens |
 | `proxy_read_timeout 3600s` | Allow long-lived WebSocket connections |
+## 8. Tips and Troubleshooting
+
+### 8.1 macvlan Network Configuration in Rocky Linux Containers
+
+**Issue:** Rocky Linux containers (especially 9.x) do not automatically obtain DHCP addresses when a macvlan profile is applied, unlike Ubuntu containers. This is due to changes in Network Manager.
+
+**Reference:** [Rocky Linux LXD Server - Profiles Documentation](https://docs.rockylinux.org/10/books/lxd_server/06-profiles/)
+
+**Solution - DHCP Fix:**
+
+1. Apply the macvlan profile to your Rocky Linux container:
+
+```bash
+lxc profile assign rockylinux-container default,macvlan
+```
+
+2. Access the container shell:
+
+```bash
+lxc exec rockylinux-container bash
+```
+
+3. Install required tools (if not already present):
+
+```bash
+dnf install which
+which dhclient
+```
+
+4. Edit root's crontab:
+
+```bash
+crontab -e
+```
+
+5. Add the following line to run `dhclient` on boot:
+
+```bash
+@reboot    /usr/sbin/dhclient
+```
+
+6. Save and exit the container, then restart:
+
+```bash
+lxc restart rockylinux-container
+```
+
+**Solution - Static IP Fix:**
+
+For static IP assignment on Rocky Linux containers:
+
+1. Access the container shell:
+
+```bash
+lxc exec rockylinux-container bash
+```
+
+2. Create a bash script at `/usr/local/sbin/static`:
+
+```bash
+vi /usr/local/sbin/static
+```
+
+3. Add the following content (adjust IP, subnet, and gateway as needed):
+
+```bash
+#!/usr/bin/env bash
+
+/usr/sbin/ip link set dev eth0 name net0
+/usr/sbin/ip addr add 192.168.1.151/24 dev net0
+/usr/sbin/ip link set dev net0 up
+/usr/sbin/ip route add default via 192.168.1.1
+```
+
+4. Make the script executable:
+
+```bash
+chmod +x /usr/local/sbin/static
+```
+
+5. Add to root's crontab:
+
+```bash
+crontab -e
+```
+
+Add this line:
+
+```bash
+@reboot    /usr/local/sbin/static
+```
+
+6. Exit and restart the container:
+
+```bash
+lxc restart rockylinux-container
+```
+
+**Note:** Ubuntu containers with macvlan profiles work seamlessly and automatically obtain DHCP addresses. This workaround is specific to Rocky Linux and other RHEL-based distributions due to NetworkManager implementation differences.
+
+### 8.2 Useful LXD Commands
+
+View all container details:
+
+```bash
+lxc list
+```
+
+View container configuration:
+
+```bash
+lxc config show <container-name>
+```
+
+View network configuration:
+
+```bash
+lxc network show lxdbr0
+```
+
+List all profiles:
+
+```bash
+lxc profile list
+```
+
+View specific profile:
+
+```bash
+lxc profile show <profile-name>
+```
+
+Rebuild image cache:
+
+```bash
+lxc image list
+```
