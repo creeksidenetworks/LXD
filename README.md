@@ -389,54 +389,11 @@ docker compose restart
 
 ### 7.5 Advanced Configuration: Non-Standard Port for LXD WebUI
 
-For advanced setups where LXD WebUI needs to be exposed on a non-standard port (e.g., 8843), configure custom nginx settings in Nginx Proxy Manager.
+For advanced setups where LXD WebUI needs to be exposed on a non-standard port (e.g., 8843), configure custom nginx settings through the Nginx Proxy Manager web UI.
 
-Access NPM data directory:
+**Step 1: Update docker-compose.yml to expose the custom port**
 
-```bash
-cd /opt/npm/data/nginx
-```
-
-Create custom configuration file:
-
-```bash
-sudo tee /opt/npm/data/nginx/custom_lxd.conf > /dev/null <<'EOF'
-listen 8843 ssl http2;
-listen [::]:8843 ssl http2;
-
-location / {
-    proxy_pass https://10.1.41.101:8443;
-    proxy_ssl_verify off;
-    
-    proxy_ssl_protocols TLSv1.3;
-    
-    proxy_cookie_domain 10.1.41.101 lxd.yourdomain.com;
-    proxy_cookie_path / /;
-    proxy_pass_header Set-Cookie;
-
-    proxy_set_header Host $host:8843;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto https;
-    proxy_set_header X-Forwarded-Port 8843;
-    
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-
-    proxy_buffer_size 128k;
-    proxy_buffers 4 256k;
-    proxy_busy_buffers_size 256k;
-
-    proxy_buffering off;
-    proxy_read_timeout 3600s;
-}
-EOF
-```
-
-Update docker-compose.yml to expose port 8843:
-
-Edit `/opt/npm/docker-compose.yml` and add the port mapping:
+Edit `/opt/npm/docker-compose.yml` and add the custom port mapping to the ports section:
 
 ```yaml
 ports:
@@ -453,15 +410,65 @@ cd /opt/npm
 docker compose restart
 ```
 
-Update proxy host configuration in NPM dashboard:
+**Step 2: Configure proxy host in NPM web UI**
 
-1. Log in to NPM at `http://<server-ip>:81`
-2. Edit the existing LXD proxy host
-3. Update **Forward Port** to match your LXD API port: `8443`
-4. Add custom nginx configuration snippet if needed
-5. Save and enable
+1. Log in to NPM dashboard at `http://<server-ip>:81`
+2. Navigate to **Proxy Hosts** and select your LXD proxy host
+3. Under the **Details** tab:
+   - **Scheme:** `https`
+   - **Forward Hostname/IP:** `<lxd-server-ip>` (e.g., `10.1.41.101`)
+   - **Forward Port:** `8443`
+   - **Cache Assets:** `On`
+   - **Block Common Exploits:** `On`
+   - **Websockets Support:** `On`
 
-Access LXD WebUI on custom port:
+4. Navigate to the **Advanced** tab and paste the following custom nginx configuration:
+
+```nginx
+# enable listen on non-standard port here
+listen 8843 ssl http2;
+listen [::]:8843 ssl http2;
+
+# LXD WebUI proxy
+location / {
+        proxy_pass $forward_scheme://$server:$port;
+        proxy_ssl_verify off;
+        
+        # FIX: Force TLS 1.3 only to match LXD's requirements
+        proxy_ssl_protocols TLSv1.3;
+        
+        # --- COOKIE FIXES ---
+        proxy_cookie_domain $server lxd.cn.creekside.network;
+        proxy_cookie_path / /;
+        proxy_pass_header Set-Cookie;
+
+        # Headers for proper proxying
+        proxy_set_header Host $host:$port;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Port $port;
+        
+        # WebSocket support
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Buffer sizes for OIDC tokens
+        proxy_buffer_size          128k;
+        proxy_buffers              4 256k;
+        proxy_busy_buffers_size    256k;
+
+        proxy_buffering off;
+        proxy_read_timeout 3600s;
+    }
+```
+
+5. Save and enable the proxy host
+
+**Step 3: Access and verify**
+
+Access LXD WebUI on the custom port:
 
 ```bash
 https://lxd.yourdomain.com:8843
