@@ -524,6 +524,9 @@ config:
         ssh_authorized_keys:
           - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDHrPVbtdHf0aJeRu49fm/lLQPxopvvz6NZZqqGB+bcocZUW3Hw8bflhouTsJ+S4Z3v7L/F6mmZhXU1U3PqUXLVTE4eFMfnDjBlpOl0VDQoy9aT60C1Sreo469FB0XQQYS5CyIWW5C5rQQzgh1Ov8EaoXVGgW07GHUQCg/cmOBIgFvJym/Jmye4j2ALe641jnCE98yE4mPur7AWIs7n7W8DlvfEVp4pnreqKtlnfMqoOSTVl2v81gnp4H3lqGyjjK0Uku72GKUkAwZRD8BIxbA75oBEr3f6Klda2N88uwz4+3muLZpQParYQ+BhOTvldMMXnhqM9kHhvFZb21jTWV7p creeksidenetworks@gmail.com
 
+    bootcmd:
+      - dhclient -v || true
+
     packages:
       - epel-release
       - openssh-server
@@ -612,7 +615,7 @@ lxc restart rockylinux-container
 
 **Solution - Static IP Fix:**
 
-For static IP assignment on Rocky Linux containers:
+For static IP assignment on Rocky Linux containers, use a systemd network service:
 
 1. Access the container shell:
 
@@ -620,42 +623,39 @@ For static IP assignment on Rocky Linux containers:
 lxc exec rockylinux-container bash
 ```
 
-2. Create a bash script at `/usr/local/sbin/static`:
+2. Create a systemd service unit at `/etc/systemd/system/eth0-static.service`:
 
 ```bash
-vi /usr/local/sbin/static
+vi /etc/systemd/system/eth0-static.service
 ```
 
 3. Add the following content (adjust IP, subnet, and gateway as needed):
 
-```bash
-#!/usr/bin/env bash
+```ini
+[Unit]
+Description=Static IP for eth0
+After=network.target
+Wants=network.target
 
-/usr/sbin/ip link set dev eth0 name net0
-/usr/sbin/ip addr add 192.168.1.151/24 dev net0
-/usr/sbin/ip link set dev net0 up
-/usr/sbin/ip route add default via 192.168.1.1
+[Service]
+Type=oneshot
+ExecStart=/sbin/ip link set eth0 up
+ExecStart=/sbin/ip addr add <your-static-ip>/<subnet-mask> dev eth0
+ExecStart=/sbin/ip route add default via <your-gateway-ip>
+ExecStart=/bin/sh -c 'echo "nameserver <your-dns-server>" > /etc/resolv.conf'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
 ```
 
-4. Make the script executable:
+4. Enable the service:
 
 ```bash
-chmod +x /usr/local/sbin/static
+systemctl enable eth0-static.service
 ```
 
-5. Add to root's crontab:
-
-```bash
-crontab -e
-```
-
-Add this line:
-
-```bash
-@reboot    /usr/local/sbin/static
-```
-
-6. Exit and restart the container:
+5. Exit and restart the container:
 
 ```bash
 lxc restart rockylinux-container
