@@ -562,6 +562,13 @@ devices: {}
 name: rocky
 ```
 
+Add the `bootcmd` directive to your Rocky Linux profile's cloud-init configuration to automatically enable DHCP on boot:
+
+```yaml
+bootcmd:
+  - dhclient -v || true
+```
+
 To apply this profile when launching a Rocky Linux container:
 
 ```bash
@@ -576,43 +583,7 @@ lxc launch images:rocky/9/default rocky-vm --profile rocky
 
 **Solution - DHCP Fix:**
 
-Add the `bootcmd` directive to your Rocky Linux profile's cloud-init configuration to automatically enable DHCP on boot:
-
-```yaml
-bootcmd:
-  - dhclient -v || true
-```
-
-This should be added to the `cloud-init.user-data` section of your profile (as shown in section 8.1.1). The command will:
-- Run early in the boot process before package installation
-- Obtain an IP address via DHCP on the `eth0` interface
-- Continue boot even if dhclient fails with `|| true`
-
-Alternatively, if you need to manually fix an existing container:
-
-1. Access the container shell:
-
-```bash
-lxc exec rockylinux-container bash
-```
-
-2. Run dhclient to obtain an IP:
-
-```bash
-/usr/sbin/dhclient eth0
-```
-
-3. Verify the interface has an IP:
-
-```bash
-ip addr show eth0
-```
-
-4. Exit and restart the container:
-
-```bash
-lxc restart rockylinux-container
-```
+With the cloud-init bootcmd section, DHCP will be enabled on boot.
 
 **Solution - Static IP Fix:**
 
