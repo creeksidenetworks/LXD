@@ -494,90 +494,11 @@ Configuration Reference:
 | `proxy_read_timeout 3600s` | Allow long-lived WebSocket connections |
 ## 8. Tips and Troubleshooting
 
-### 8.1 Container Profiles with macvlan interface
+### 8.1 Rocky Linux Container Profiles
 
-#### 8.1.1 Rocky Linux Profile with DHCP Configuration
+#### 8.1.1 Rocky Linux Profile
 
-Create a Rocky Linux profile with cloud-init configuration:
-
-```bash
-lxc profile create rocky
-```
-
-Edit the profile and add the following cloud-init contents:
-
-```bash
-lxc profile edit rocky
-```
-
-Paste the following configuration:
-
-```yaml
-config:
-  cloud-init.user-data: |
-    #cloud-config
-    disable_root: false
-    package_update: true
-
-    users:
-      - name: root
-        ssh_authorized_keys:
-          - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDHrPVbtdHf0aJeRu49fm/lLQPxopvvz6NZZqqGB+bcocZUW3Hw8bflhouTsJ+S4Z3v7L/F6mmZhXU1U3PqUXLVTE4eFMfnDjBlpOl0VDQoy9aT60C1Sreo469FB0XQQYS5CyIWW5C5rQQzgh1Ov8EaoXVGgW07GHUQCg/cmOBIgFvJym/Jmye4j2ALe641jnCE98yE4mPur7AWIs7n7W8DlvfEVp4pnreqKtlnfMqoOSTVl2v81gnp4H3lqGyjjK0Uku72GKUkAwZRD8BIxbA75oBEr3f6Klda2N88uwz4+3muLZpQParYQ+BhOTvldMMXnhqM9kHhvFZb21jTWV7p creeksidenetworks@gmail.com
-
-    bootcmd:
-      - dhclient -v || true
-
-    packages:
-      - epel-release
-      - openssh-server
-      - firewalld
-      - iputils
-      - nano
-      - git
-      - ncurses
-      - net-tools
-      - nfs-utils
-      - curl
-      - wget
-      - rsync
-      - telnet
-      - jq
-      - lsof
-      - bind-utils
-      - tcpdump
-      - net-tools
-      - util-linux
-      - tree
-      - traceroute
-      - mtr
-      - cloud-utils-growpart
-
-    runcmd:
-      - systemctl enable --now sshd
-      - systemctl enable --now firewalld
-      - firewall-cmd --permanent --add-service=ssh
-      - firewall-cmd --reload
-description: Rocky Linux profile with cloud-init configuration
-devices: {}
-name: rocky
-```
-
-Add the `bootcmd` directive to your Rocky Linux profile's cloud-init configuration to automatically enable DHCP on every boot:
-
-```yaml
-bootcmd:
-  - dhclient -v || true
-```
-
-To apply this profile when launching a Rocky Linux container:
-
-```bash
-lxc launch images:rocky/9/default rocky-vm --profile rocky
-```
-
-### 8.2 Rocky Linux Profile with Static IP Configuration
-
-Use following cloud-init configuration to ensure the dhcpclient will run only during first boot.
+Paste the following configuration into your LXD profile's cloud-init configuration user-data section:
 
 ```yaml
 #cloud-config
@@ -594,9 +515,11 @@ runcmd:
   - dnf install -y epel-release openssh-server firewalld iputils nano git ncurses net-tools nfs-utils curl wget rsync telnet  jq   lsof bind-utils tcpdump net-tools util-linux tree traceroute mtr cloud-utils-growpart
   - systemctl enable --now sshd
   - systemctl enable --now firewalld
-  - firewall-cmd --permanent --add-service=ssh
-  - firewall-cmd --reload
 ```
+
+The above configuration will run dhclient once (critical to bring up macvaln interface in containers) and install the basic pacakges, enabled sshd and firewalld.
+
+### 8.1.2 Static IP Configuration Workaround for macvlan interface
 
 For static IP assignment on Rocky Linux containers, use a systemd network service:
 
@@ -606,15 +529,10 @@ For static IP assignment on Rocky Linux containers, use a systemd network servic
 lxc exec rockylinux-container bash
 ```
 
-2. Create a systemd service unit at `/etc/systemd/system/eth0-static.service`:
+2. Create the systemd service file:
 
 ```bash
-vi /etc/systemd/system/eth0-static.service
-```
-
-3. Add the following content (adjust IP, subnet, and gateway as needed):
-
-```ini
+cat > /etc/systemd/system/eth0-static.service <<'EOF'
 [Unit]
 Description=Static IP for eth0
 After=network.target
@@ -630,23 +548,63 @@ RemainAfterExit=yes
 
 [Install]
 WantedBy=multi-user.target
+EOF
 ```
 
-4. Enable the service:
+3. Enable the service:
 
 ```bash
 systemctl enable eth0-static.service
 ```
 
-5. Exit and restart the container:
+4. Exit and restart the container:
 
 ```bash
 lxc restart rockylinux-container
 ```
 
-**Note:** Ubuntu containers with macvlan profiles work seamlessly and automatically obtain DHCP addresses. This workaround is specific to Rocky Linux and other RHEL-based distributions due to NetworkManager implementation differences.
+### 8.1.3 DHCP Configuration Workaround for macvlan interface
 
-### 8.3 Useful LXD Commands
+For DHCP IP assignment on Rocky Linux containers, use a systemd network service:
+
+1. Access the container shell:
+
+```bash
+lxc exec rockylinux-container bash
+```
+
+2. Create the systemd service file:
+
+```bash
+cat > /etc/systemd/system/eth0-dhcp.service <<'EOF'
+[Unit]
+Description=DHCP Configuration for eth0
+After=network.target
+Wants=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/dhclient -v eth0
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+3. Enable the service:
+
+```bash
+systemctl enable eth0-dhcp.service
+```
+
+4. Exit and restart the container:
+
+```bash
+lxc restart rockylinux-container
+```
+
+### 8.2 Useful LXD Commands
 
 View all container details:
 
