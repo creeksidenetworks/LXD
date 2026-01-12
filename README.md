@@ -576,38 +576,39 @@ lxc launch images:rocky/9/default rocky-vm --profile rocky
 
 **Solution - DHCP Fix:**
 
-1. Apply the macvlan profile to your Rocky Linux container:
+Add the `bootcmd` directive to your Rocky Linux profile's cloud-init configuration to automatically enable DHCP on boot:
 
-```bash
-lxc profile assign rockylinux-container default,macvlan
+```yaml
+bootcmd:
+  - dhclient -v || true
 ```
 
-2. Access the container shell:
+This should be added to the `cloud-init.user-data` section of your profile (as shown in section 8.1.1). The command will:
+- Run early in the boot process before package installation
+- Obtain an IP address via DHCP on the `eth0` interface
+- Continue boot even if dhclient fails with `|| true`
+
+Alternatively, if you need to manually fix an existing container:
+
+1. Access the container shell:
 
 ```bash
 lxc exec rockylinux-container bash
 ```
 
-3. Install required tools (if not already present):
+2. Run dhclient to obtain an IP:
 
 ```bash
-dnf install which
-which dhclient
+/usr/sbin/dhclient eth0
 ```
 
-4. Edit root's crontab:
+3. Verify the interface has an IP:
 
 ```bash
-crontab -e
+ip addr show eth0
 ```
 
-5. Add the following line to run `dhclient` on boot:
-
-```bash
-@reboot    /usr/sbin/dhclient
-```
-
-6. Save and exit the container, then restart:
+4. Exit and restart the container:
 
 ```bash
 lxc restart rockylinux-container
