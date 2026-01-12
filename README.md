@@ -494,9 +494,9 @@ Configuration Reference:
 | `proxy_read_timeout 3600s` | Allow long-lived WebSocket connections |
 ## 8. Tips and Troubleshooting
 
-### 8.1 Container Profiles
+### 8.1 Container Profiles with macvlan interface
 
-#### 8.1.1 Rocky Linux Profile
+#### 8.1.1 Rocky Linux Profile with DHCP Configuration
 
 Create a Rocky Linux profile with cloud-init configuration:
 
@@ -562,7 +562,7 @@ devices: {}
 name: rocky
 ```
 
-Add the `bootcmd` directive to your Rocky Linux profile's cloud-init configuration to automatically enable DHCP on boot:
+Add the `bootcmd` directive to your Rocky Linux profile's cloud-init configuration to automatically enable DHCP on every boot:
 
 ```yaml
 bootcmd:
@@ -575,17 +575,28 @@ To apply this profile when launching a Rocky Linux container:
 lxc launch images:rocky/9/default rocky-vm --profile rocky
 ```
 
-### 8.2 macvlan Network Configuration in Rocky Linux Containers
+### 8.2 Rocky Linux Profile with Static IP Configuration
 
-**Issue:** Rocky Linux containers (especially 9.x) do not automatically obtain DHCP addresses when a macvlan profile is applied, unlike Ubuntu containers. This is due to changes in Network Manager.
+Use following cloud-init configuration to ensure the dhcpclient will run only during first boot.
 
-**Reference:** [Rocky Linux LXD Server - Profiles Documentation](https://docs.rockylinux.org/10/books/lxd_server/06-profiles/)
+```yaml
+#cloud-config
+disable_root: false
+package_update: true
 
-**Solution - DHCP Fix:**
+users:
+  - name: root
+    ssh_authorized_keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDHrPVbtdHf0aJeRu49fm/lLQPxopvvz6NZZqqGB+bcocZUW3Hw8bflhouTsJ+S4Z3v7L/F6mmZhXU1U3PqUXLVTE4eFMfnDjBlpOl0VDQoy9aT60C1Sreo469FB0XQQYS5CyIWW5C5rQQzgh1Ov8EaoXVGgW07GHUQCg/cmOBIgFvJym/Jmye4j2ALe641jnCE98yE4mPur7AWIs7n7W8DlvfEVp4pnreqKtlnfMqoOSTVl2v81gnp4H3lqGyjjK0Uku72GKUkAwZRD8BIxbA75oBEr3f6Klda2N88uwz4+3muLZpQParYQ+BhOTvldMMXnhqM9kHhvFZb21jTWV7p creeksidenetworks@gmail.com
 
-With the cloud-init bootcmd section, DHCP will be enabled on boot.
-
-**Solution - Static IP Fix:**
+runcmd:
+  - dhclient -v || true
+  - dnf install -y epel-release openssh-server firewalld iputils nano git ncurses net-tools nfs-utils curl wget rsync telnet  jq   lsof bind-utils tcpdump net-tools util-linux tree traceroute mtr cloud-utils-growpart
+  - systemctl enable --now sshd
+  - systemctl enable --now firewalld
+  - firewall-cmd --permanent --add-service=ssh
+  - firewall-cmd --reload
+```
 
 For static IP assignment on Rocky Linux containers, use a systemd network service:
 
