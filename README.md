@@ -430,38 +430,44 @@ listen 8843 ssl http2;
 listen [::]:8843 ssl http2;
 
 # LXD WebUI proxy
+# enable listen on non-standard port here
+listen 8843 ssl http2;
+listen [::]:8843 ssl http2;
+
 location / {
-        proxy_pass $forward_scheme://$server:$port;
-        proxy_ssl_verify off;
-        
-        # FIX: Force TLS 1.3 only to match LXD's requirements
-        proxy_ssl_protocols TLSv1.3;
-        
-        # --- COOKIE FIXES ---
-        proxy_cookie_domain $server lxd.cn.creekside.network;
-        proxy_cookie_path / /;
-        proxy_pass_header Set-Cookie;
+  set $public_port 8843;
+  
+  proxy_pass $forward_scheme://$server:$port;
+  proxy_ssl_verify off;
+  
+  # FIX: Force TLS 1.3 only to match LXD's requirements
+  proxy_ssl_protocols TLSv1.3;
+  
+  # --- COOKIE FIXES ---
+  proxy_cookie_domain 127.0.0.1  $server:$server_port;
+  proxy_cookie_path / /;
+  proxy_pass_header Set-Cookie;
 
-        # Headers for proper proxying
-        proxy_set_header Host $host:$port;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header X-Forwarded-Port $port;
-        
-        # WebSocket support
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
+  # Headers for proper proxying
+  proxy_set_header Host $host:$public_port;
+  proxy_set_header X-Real-IP $remote_addr;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-Forwarded-Proto https;
+  proxy_set_header X-Forwarded-Port $public_port;
+  
+  # WebSocket support
+  proxy_http_version 1.1;
+  proxy_set_header Upgrade $http_upgrade;
+  proxy_set_header Connection "upgrade";
 
-        # Buffer sizes for OIDC tokens
-        proxy_buffer_size          128k;
-        proxy_buffers              4 256k;
-        proxy_busy_buffers_size    256k;
+  # Buffer sizes for OIDC tokens
+  proxy_buffer_size          128k;
+  proxy_buffers              4 256k;
+  proxy_busy_buffers_size    256k;
 
-        proxy_buffering off;
-        proxy_read_timeout 3600s;
-    }
+  proxy_buffering off;
+  proxy_read_timeout 3600s;
+}
 ```
 
 5. Save and enable the proxy host
