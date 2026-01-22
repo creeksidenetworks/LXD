@@ -14,15 +14,18 @@ write_files:
     permissions: '0755'
     content: |
       #!/usr/bin/env bash
-      prefix=10.1.1
-      addr=${prefix}.5/24
-      gw=${prefix}.254            
+      #addr=10.180.12.5/24
+      #gw=10.180.12.254
+  
       # set static ip
-      #/usr/sbin/ip addr add $addr dev eth0
-      #/usr/sbin/ip link set dev eth0 up
-      #sleep 2
-      #/usr/sbin/ip route add default via $gw
-      #/usr/bin/echo "nameserver $gw" > /etc/resolv.conf
+      if [ -n $addr ]; then
+        /usr/sbin/ip addr flush dev eth0
+        /usr/sbin/ip addr add $addr dev eth0
+        /usr/sbin/ip link set dev eth0 up
+        sleep 2
+        /usr/sbin/ip route add default via $gw
+        /usr/bin/echo "nameserver $gw" > /etc/resolv.conf
+      fi
 
 runcmd:
   - dhclient -v || true
@@ -33,4 +36,4 @@ runcmd:
   - dnf install -y epel-release openssh-server iputils nano git ncurses net-tools nfs-utils curl wget rsync telnet jq lsof bind-utils tcpdump net-tools util-linux tree traceroute mtr cloud-utils-growpart tar gzip
   - systemctl enable --now sshd
   # Add to eth0 configure script to root crontab
-  - echo "@reboot /usr/local/sbin/eth0") | crontab -
+  - echo "@reboot /usr/local/sbin/eth0" | crontab -
