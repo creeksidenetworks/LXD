@@ -547,6 +547,7 @@ Wants=network.target
 [Service]
 Type=oneshot
 ExecStart=/sbin/ip link set eth0 up
+ExecStart=/usr/bin/sleep 2
 ExecStart=/sbin/ip addr add <your-static-ip>/<subnet-mask> dev eth0
 ExecStart=/sbin/ip route add default via <your-gateway-ip>
 ExecStart=/bin/sh -c 'echo "nameserver <your-dns-server>" > /etc/resolv.conf'
