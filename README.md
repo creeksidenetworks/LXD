@@ -160,8 +160,6 @@ lxc config set oidc.client.id <CLIENT_ID>
 # Set OIDC client secret
 lxc config set oidc.client.secret <CLIENT_SECRET>
 
-# Set OIDC redirect URL
-lxc config set oidc.redirect.url https://lxd.yourdomain.com/auth/oidc/callback
 ```
 
 **Variables:**
@@ -210,8 +208,8 @@ Test OIDC authentication:
 lxc config get oidc.issuer
 lxc config get oidc.client.id
 
-# Check trust entries
-lxc config trust list
+# Check OIDC identity entries
+lxc auth identity list
 ```
 
 Access LXD WebUI and test login with your MS365 credentials:
@@ -426,12 +424,7 @@ docker compose restart
 
 ```nginx
 # enable listen on non-standard port here
-listen 8843 ssl http2;
-listen [::]:8843 ssl http2;
-
-# LXD WebUI proxy
-# enable listen on non-standard port here
-listen 8843 ssl http2;
+listen :8843 ssl http2;
 listen [::]:8843 ssl http2;
 
 location / {
@@ -490,7 +483,7 @@ Configuration Reference:
 
 | Parameter | Description |
 |-----------|-------------|
-| `listen 8843 ssl http2` | Listen on port 8843 with SSL and HTTP/2 |
+| `listen :8843 ssl http2` | Listen on port 8843 with SSL and HTTP/2 |
 | `proxy_ssl_verify off` | Disable SSL certificate verification for backend |
 | `proxy_ssl_protocols TLSv1.3` | Force TLS 1.3 for backend communication |
 | `proxy_cookie_domain` | Rewrite cookie domain to match reverse proxy |
